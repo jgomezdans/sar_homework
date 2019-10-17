@@ -197,6 +197,9 @@ def prepare_field_data(field, df, df_s2):
     svv = 10 * np.log(df[f"sigma_sentinel_vv_{field:s}"])
     svh = 10 * np.log(df[f"sigma_sentinel_vh_{field:s}"])
     passer = np.isfinite(svv)
+    #svv = df[f"sigma_sentinel_vv_{field:s}"][passer]
+    #svh = df[f"sigma_sentinel_vh_{field:s}"][passer]
+
     svv = svv[passer]
     svh = svh[passer]
     n_obs = len(svv)
@@ -246,7 +249,7 @@ def do_plots(field, retval, svv, svh, theta, doy, df, s2_lai):
     )
     axs[1].axhspan(-0.5, 0.5, color="0.8")
     axs[1].legend(loc="best")
-    l1 = axs[2].plot(doy, retval.x[6 : (n_obs + 6)], "r-o", label="sigma soil")
+    l1 = axs[2].plot(doy, retval.x[5 : (n_obs + 5)], "r-o", label="sigma soil")
     axx = axs[2].twinx()
     l2 = axx.plot(
         df[f"doy_{field:s}"], df[f"SM_{field:s}"], "s-g", label="Sigma SM"
@@ -260,7 +263,7 @@ def do_plots(field, retval, svv, svh, theta, doy, df, s2_lai):
     l2 = axs[3].plot(
         df[f"doy_{field:s}"], df[f"LAI_{field:s}"], "o", label="In situ"
     )
-    l3 = axs[3].plot(doy, retval.x[(n_obs + 6) :], label="Analysis")
+    l3 = axs[3].plot(doy, retval.x[(n_obs + 5) :], label="Analysis")
     axs[0].set_ylabel("Backscatter [dB]")
     axs[1].set_ylabel("Residual [dB]")
     axs[3].set_ylabel("Leaf area index $[m^2\,m^{-2}]$")
@@ -269,21 +272,19 @@ def do_plots(field, retval, svv, svh, theta, doy, df, s2_lai):
     axs[3].legend(legends, labels, loc="best")
 
 
-def invert_field(svv, svh, theta, prior_mean, prior_sd, gamma, s2_lai):
+def invert_field(svv, svh, theta, prior_mean, prior_sd, gamma, s2_lai, ks0=4):
     n_obs = len(svv)
-    # Do some dodgy starting point guessing
-    sigma_soil_vv_mu = np.mean(svv[s2_lai < 1])
-    sigma_soil_vh_mu = np.mean(svh[s2_lai < 1])
-    xvv = np.array([1, 0.5, sigma_soil_vv_mu])
-    xvh = np.array([1, 0.5, sigma_soil_vh_mu])
-    sm0 = prior_mean[6 : (6 + n_obs)]
+    xvv = np.array([1, 0.5])
+    xvh = np.array([1, 0.5, ks0])
+    sm0 = prior_mean[5 : (5 + n_obs)]
     # In reality, this should come from a sensible prior mean, but for the
     # time being...
     x0 = np.concatenate([xvv, xvh, sm0, s2_lai])
 
     # Put some parameter bounds so we don't end up with crazy numbers
     bounds = (
-        [[None, None]] * 6
+        [[None, None]] * 4
+        + [0.1, 20]
         + [[0, 0.5]] * s2_lai.shape[0]
         + [[0, 8]] * s2_lai.shape[0]
     )
