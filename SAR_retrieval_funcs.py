@@ -157,29 +157,35 @@ def fwd_model(x, svh, svv, theta):
 
 ############ Some general functions for inversions #####
 def prepare_field_data(field, df, df_s2):
-    """Extracts and prepares data for a single field"""
-    svv = 10 * np.log(df[f"sigma_sentinel_vv_{field:s}"])
-    svh = 10 * np.log(df[f"sigma_sentinel_vh_{field:s}"])
-    passer = np.isfinite(svv)
-    #svv = df[f"sigma_sentinel_vv_{field:s}"][passer]
-    #svh = df[f"sigma_sentinel_vh_{field:s}"][passer]
+    svvx = 10 * np.log(df[f"sigma_sentinel_vv_{field:s}"])
+    svhx = 10 * np.log(df[f"sigma_sentinel_vh_{field:s}"])
+    thetax = df[f"theta_{field:s}"]
+    passer1 = np.isfinite(svvx)
 
-    svv = svv[passer]
-    svh = svh[passer]
-    n_obs = len(svv)
-    theta = df[f"theta_{field:s}"][passer]
-    s2_lai = np.interp(
-        df[f"doy_{field:s}"][passer], df_s2.doy, df_s2[f"lai_{field:s}"]
-    )
-    s2_cab = np.interp(
-        df[f"doy_{field:s}"][passer], df_s2.doy, df_s2[f"cab_{field:s}"]
-    )
-    s2_cbrown = np.interp(
-        df[f"doy_{field:s}"][passer], df_s2.doy, df_s2[f"cbrown_{field:s}"]
-    )
-    doy = df[f"doy_{field:s}"][passer]
-    return doy, passer, n_obs, svv, svh, theta, s2_lai, s2_cab, s2_cbrown
+    orbits = np.unique(df[f"relativeorbit_{field:s}"].values)
+    orbit_data = {}
+    for orbit in orbits:
+        passer = df[f"relativeorbit_{field:s}"] == orbit
+        passer = passer*passer1
+        """Extracts and prepares data for a single field"""
 
+        svv = svvx[passer].values
+        svh = svhx[passer].values
+        theta = thetax[passer].values
+        n_obs = len(svv)
+        s2_lai = np.interp(
+            df[f"doy_{field:s}"][passer], df_s2.doy, df_s2[f"lai_{field:s}"]
+        )
+        s2_cab = np.interp(
+            df[f"doy_{field:s}"][passer], df_s2.doy, df_s2[f"cab_{field:s}"]
+        )
+        s2_cbrown = np.interp(
+            df[f"doy_{field:s}"][passer], df_s2.doy, df_s2[f"cbrown_{field:s}"]
+        )
+        doy = df[f"doy_{field:s}"][passer].values
+        orbit_data[orbit] = [doy, passer, n_obs, svv, svh, theta,
+                             s2_lai, s2_cab, s2_cbrown]
+    return orbit_data
 
 def do_plots(field, retval, svv, svh, theta, doy, df, s2_lai):
     n_obs = len(svv)
