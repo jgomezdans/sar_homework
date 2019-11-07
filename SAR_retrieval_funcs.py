@@ -3,11 +3,82 @@
 import datetime as dt
 from pathlib import Path
 
+import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.optimize
 import scipy.stats
 
+
+def wcm_jac(A, V1, B, V2, C, sigma_soil, theta=23):
+    """WCM model and jacobian calculations. The main
+    assumption here is that we only consider first
+    order effects. The vegetation backscatter contribution
+    is given by `A*V1`, which is often related to scatterer
+    (e.g. leaves, stems, ...) properties. The attenuation
+    due to the canopy is controlled by `B*V2`, which is
+    often related to canopy moisture content (this is polarisation
+    and frequency dependent). The soil backscatter is modelled as
+    a linear function of volumetric soil moisture.
+    
+    This function returns the gradient for all parameters (A, B, 
+    V1, V2 and C)."""
+    mu = np.cos(np.deg2rad(theta))
+    tau = np.exp(-2 * B * V2 / mu)
+    veg = A * V1 * (1 - tau)
+    soil = tau * sigma_soil + C
+
+    der_dA = V1 - V1 * tau
+    der_dV1 = A - A * tau
+    der_dB = (-2 * V2 / mu) * tau * (-A * V1 + sigma_soil)
+    der_dV2 = (-2 * B / mu) * tau * (-A * V1 + sigma_soil)
+    der_dC = 1  # CHECK!!!!!!
+    der_dsigmasoil = tau
+
+    # Also returns der_dV1 and der_dV2
+    return (
+        veg + soil,
+        [der_dA, der_dB, der_dC, der_dsigmasoil, der_dV1, der_dV2],
+    )
+
+
+def cost_obs_OLD(x, svh, svv, theta, unc=0.5):
+    """Cost function. Order of parameters is
+    A_vv, B_vv, C_vv, A_vh, B_vh, C_vh,
+    vsm_0, ..., vsm_N,
+    LAI_0, ..., LAI_N
+    
+    We assume that len(svh) == N
+    Uncertainty is the uncertainty in backscatter, and
+    assume that there are two polarisations (VV and VH),
+    although these are just labels!
+    """
+    n_obs = svh.shape[0]
+    A_vv, B_vv, C_vv, A_vh, B_vh, C_vh = x[:6]
+    vsm = x[6 : (6 + n_obs)]
+    lai = x[(6 + n_obs) :]
+    sigma_vv, dvv = wcm_jac(A_vv, lai, B_vv, lai, C_vv, vsm, theta=theta)
+    sigma_vh, dvh = wcm_jac(A_vh, lai, B_vh, lai, C_vh, vsm, theta=theta)
+    diff_vv = svv - sigma_vv
+    diff_vh = svh - sigma_vh
+    cost = 0.5 * (diff_vv ** 2 + diff_vh ** 2) / (unc ** 2)
+    jac = np.concatenate(
+        [
+            np.array(
+                [
+                    np.sum(dvv[0] * diff_vv),  # A_vv
+                    np.sum(dvv[1] * diff_vv),  # B_vv
+                    np.sum(dvv[2] * diff_vv),  # C_vv
+                    np.sum(dvh[0] * diff_vh),  # A_vh
+                    np.sum(dvh[1] * diff_vh),  # B_vh
+                    np.sum(dvh[2] * diff_vh),
+                ]
+            ),  # C_vh
+            dvv[3] * diff_vv + dvh[3] * diff_vh,  # vsm
+            (dvv[4] + dvv[5]) * diff_vv + (dvh[4] + dvh[5]) * diff_vh,  # LAI
+        ]
+    )
+    return cost.sum(), -jac / (unc ** 2)
 
 
 def wcm(A, V1, B, V2, mvs, R, theta=23, pol="VH"):
@@ -123,7 +194,8 @@ def cost_smooth(x, gamma):
     return xcost_model, xdcost_model
 
 
-def cost_function(x, svh, svv, theta, gamma, prior_mean, prior_unc, unc=0.8):
+def cost_function(x, svh, svv, theta, gamma, prior_mean, prior_unc, 
+                  unc=0.8):
     """A combined cost function that calls the prior, fit to the observations
     """
     # Fit to the observations
@@ -153,40 +225,79 @@ def fwd_model(x, svh, svv, theta):
     return sigma_vv, sigma_vh
 
 
+def extract_data():
+    chunk = """;301;301;301;301;301;301;301;301;301;301;301;301;508;508;508;508;508;508;508;508;508;508;508;508;542;542;542;542;542;542;542;542;542;542;542;542;319;319;319;319;319;319;319;319;319;319;319;319;515;515;515;515;515;515;515;515;515;515;515;515
+;date;sigma_sentinel_vv;sigma_sentinel_vh;theta;relativeorbit;orbitdirection;satellite;LAI;SM;Height;VWC;vh/vv;date;sigma_sentinel_vv;sigma_sentinel_vh;theta;relativeorbit;orbitdirection;satellite;LAI;SM;Height;VWC;vh/vv;date;sigma_sentinel_vv;sigma_sentinel_vh;theta;relativeorbit;orbitdirection;satellite;LAI;SM;Height;VWC;vh/vv;date;sigma_sentinel_vv;sigma_sentinel_vh;theta;relativeorbit;orbitdirection;satellite;LAI;SM;Height;VWC;vh/vv;date;sigma_sentinel_vv;sigma_sentinel_vh;theta;relativeorbit;orbitdirection;satellite;LAI;SM;Height;VWC;vh/vv
+"""
+    fields = chunk.split("\n")[0].split(";")[1:]
+    col_names = [f"{col:s}_{fields[i]:s}" for i,
+             col in enumerate(chunk.split("\n")[1].split(";")[1:])]
 
+    df = pd.read_csv("multi.csv", skiprows=2, sep=";", names=col_names)
+    fields = ["301", "508", "542", "319", "515"]
 
+    for field in fields:
+        df[f"doy_{field:s}"] = pd.to_datetime(df[f'date_{field:s}']).dt.dayofyear
+
+    df_s2 = pd.read_csv("LMU_S2_field_retrievals.csv", sep=";")
+    df_s2['doy'] = pd.to_datetime(df_s2.dates).dt.dayofyear
+    return df, df_s2, fields
+        
+        
 ############ Some general functions for inversions #####
-def prepare_field_data(field, df, df_s2):
+def prepare_field_data(field, df, df_s2, ignore_orbits=True):
     svvx = 10 * np.log(df[f"sigma_sentinel_vv_{field:s}"])
     svhx = 10 * np.log(df[f"sigma_sentinel_vh_{field:s}"])
     thetax = df[f"theta_{field:s}"]
     passer1 = np.isfinite(svvx)
 
-    orbits = np.unique(df[f"relativeorbit_{field:s}"].values)
-    orbit_data = {}
-    for orbit in orbits:
-        passer = df[f"relativeorbit_{field:s}"] == orbit
-        passer = passer*passer1
+    if ignore_orbits:
         """Extracts and prepares data for a single field"""
 
-        svv = svvx[passer].values
-        svh = svhx[passer].values
-        theta = thetax[passer].values
+        svv = svvx[passer1].values
+        svh = svhx[passer1].values
+        theta = thetax[passer1].values
         n_obs = len(svv)
         s2_lai = np.interp(
-            df[f"doy_{field:s}"][passer], df_s2.doy, df_s2[f"lai_{field:s}"]
+            df[f"doy_{field:s}"][passer1], df_s2.doy, df_s2[f"lai_{field:s}"]
         )
         s2_cab = np.interp(
-            df[f"doy_{field:s}"][passer], df_s2.doy, df_s2[f"cab_{field:s}"]
+            df[f"doy_{field:s}"][passer1], df_s2.doy, df_s2[f"cab_{field:s}"]
         )
         s2_cbrown = np.interp(
-            df[f"doy_{field:s}"][passer], df_s2.doy, df_s2[f"cbrown_{field:s}"]
+            df[f"doy_{field:s}"][passer1], df_s2.doy, df_s2[f"cbrown_{field:s}"]
         )
-        doy = df[f"doy_{field:s}"][passer].values
-        orbit_data[orbit] = [doy, passer, n_obs, svv, svh, theta,
-                             s2_lai, s2_cab, s2_cbrown]
-    return orbit_data
+        doy = df[f"doy_{field:s}"][passer1].values
+        return (doy, passer1, n_obs, svv, svh, theta,
+                             s2_lai, s2_cab, s2_cbrown)
 
+    else:
+        orbits = np.unique(df[f"relativeorbit_{field:s}"].values)
+        orbit_data = {}
+        for orbit in orbits:
+            passer = df[f"relativeorbit_{field:s}"] == orbit
+            passer = passer*passer1
+            """Extracts and prepares data for a single field"""
+
+            svv = svvx[passer].values
+            svh = svhx[passer].values
+            theta = thetax[passer].values
+            n_obs = len(svv)
+            s2_lai = np.interp(
+                df[f"doy_{field:s}"][passer], df_s2.doy, df_s2[f"lai_{field:s}"]
+            )
+            s2_cab = np.interp(
+                df[f"doy_{field:s}"][passer], df_s2.doy, df_s2[f"cab_{field:s}"]
+            )
+            s2_cbrown = np.interp(
+                df[f"doy_{field:s}"][passer], df_s2.doy, df_s2[f"cbrown_{field:s}"]
+            )
+            doy = df[f"doy_{field:s}"][passer].values
+            orbit_data[orbit] = [doy, passer, n_obs, svv, svh, theta,
+                                 s2_lai, s2_cab, s2_cbrown]
+        return orbit_data
+
+    
 def do_plots(field, retval, svv, svh, theta, doy, df, s2_lai):
     n_obs = len(svv)
     fwd_vv, fwd_vh = fwd_model(retval.x, svh, svv, theta)
