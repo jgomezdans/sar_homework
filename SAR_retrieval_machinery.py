@@ -32,8 +32,8 @@ def wcm_jac_(A, V1, B, V2, R, alpha, C, theta=23):
     sigma_soil = R+alpha
     soil = tau * sigma_soil + C
 
-    der_dA = V1 * np.cos(theta) - V1 * np.cos(theta) * tau
-    der_dV1 = A * np.cos(theta) - A * np.cos(theta) * tau
+    der_dA = V1 * mu - V1 * mu * tau
+    der_dV1 = A * mu - A * mu * tau
     der_dB = (-2 * V2 / mu) * tau * (-A * V1 + sigma_soil)
     der_dV2 = (-2 * B / mu) * tau * (-A * V1 + sigma_soil)
     der_dC = 1
