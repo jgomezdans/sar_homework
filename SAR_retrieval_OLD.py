@@ -20,8 +20,8 @@ def wcm_jac(A, V1, B, V2, C, sigma_soil, theta=23):
     often related to canopy moisture content (this is polarisation
     and frequency dependent). The soil backscatter is modelled as
     a linear function of volumetric soil moisture.
-    
-    This function returns the gradient for all parameters (A, B, 
+
+    This function returns the gradient for all parameters (A, B,
     V1, V2 and C)."""
     mu = np.cos(np.deg2rad(theta))
     tau = np.exp(-2 * B * V2 / mu)
@@ -47,7 +47,7 @@ def cost_obs(x, svh, svv, theta, unc=0.5):
     A_vv, B_vv, C_vv, A_vh, B_vh, C_vh,
     vsm_0, ..., vsm_N,
     LAI_0, ..., LAI_N
-    
+
     We assume that len(svh) == N
     Uncertainty is the uncertainty in backscatter, and
     assume that there are two polarisations (VV and VH),
@@ -88,7 +88,7 @@ def cost_prior(x, svh, svv, theta, prior_mean, prior_unc):
     A_vv, B_vv, C_vv, A_vh, B_vh, C_vh,
     vsm_0, ..., vsm_N,
     LAI_0, ..., LAI_N
-    
+
     We assume that len(svh) == N
     """
     n_obs = len(svh)
@@ -275,8 +275,8 @@ def reproject_data(
 ############ Some general functions for inversions #####
 def prepare_field_data(field, df, df_s2):
     """Extracts and prepares data for a single field"""
-    svv = 10 * np.log(df[f"sigma_sentinel_vv_{field:s}"])
-    svh = 10 * np.log(df[f"sigma_sentinel_vh_{field:s}"])
+    svv = 10 * np.log10(df[f"sigma_sentinel_vv_{field:s}"])
+    svh = 10 * np.log10(df[f"sigma_sentinel_vh_{field:s}"])
     passer = np.isfinite(svv)
     svv = svv[passer]
     svh = svh[passer]

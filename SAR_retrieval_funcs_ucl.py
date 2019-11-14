@@ -25,11 +25,11 @@ def wcm_jac(A, V1, B, V2, C, sigma_soil, theta=23):
     V1, V2 and C)."""
     mu = np.cos(np.deg2rad(theta))
     tau = np.exp(-2 * B * V2 / mu)
-    veg = A * V1 * np.cos(theta) * (1 - tau)
+    veg = A * V1 * (1 - tau)
     soil = tau * sigma_soil + C
 
-    der_dA = V1 * np.cos(theta) - V1 * np.cos(theta) * tau
-    der_dV1 = A * np.cos(theta) - A * np.cos(theta) * tau
+    der_dA = V1 - V1 * tau
+    der_dV1 = A - A * tau
     der_dB = (-2 * V2 / mu) * tau * (-A * V1 + sigma_soil)
     der_dV2 = (-2 * B / mu) * tau * (-A * V1 + sigma_soil)
     der_dC = 1  # CHECK!!!!!!
@@ -95,17 +95,17 @@ def wcm(A, V1, B, V2, mvs, R, theta=23, pol="VH"):
     theta = np.deg2rad(theta)
     mu = np.cos(theta)
 
-    K = 10*np.log10(0.11*(np.cos(theta)**2.2))
+    K = np.log10(0.11*(np.cos(theta)**2.2))
     if pol.upper() == "VV":
-        K = K - 10*np.log10(0.095*(0.13 + np.sin(1.5*theta))**1.4)
+        K = K - np.log10(0.095*(0.13 + np.sin(1.5*theta))**1.4)
 
     tau = np.exp(-2 * B * V2 / mu)
-    veg = A * V1 * np.cos(theta) * (1 - tau)
+    veg = A * V1 * (1 - tau)
     sigma_soil = K + R + mvs
 
 
-    der_dA = V1 * np.cos(theta) - V1 * np.cos(theta) * tau
-    der_dV1 = A * np.cos(theta) - A * np.cos(theta) * tau
+    der_dA = V1 - V1 * tau
+    der_dV1 = A - A * tau
     der_dB = (-2 * V2 / mu) * tau * (-A * V1 + sigma_soil)
     der_dV2 = (-2 * B / mu) * tau * (-A * V1 + sigma_soil)
     der_dmvs = tau
@@ -246,8 +246,8 @@ def extract_data():
 
 ############ Some general functions for inversions #####
 def prepare_field_data(field, df, df_s2, ignore_orbits=True):
-    svvx = 10 * np.log10(df[f"sigma_sentinel_vv_{field:s}"])
-    svhx = 10 * np.log10(df[f"sigma_sentinel_vh_{field:s}"])
+    svvx = 10 * np.log(df[f"sigma_sentinel_vv_{field:s}"])
+    svhx = 10 * np.log(df[f"sigma_sentinel_vh_{field:s}"])
     thetax = df[f"theta_{field:s}"]
     passer1 = np.isfinite(svvx)
 
