@@ -30,8 +30,8 @@ def wcm_jac(A, V1, B, V2, C, sigma_soil, theta=23):
 
     der_dA = V1 * mu - V1 * mu * tau
     der_dV1 = A * mu - A * mu * tau
-    der_dB = (-2 * V2 / mu) * tau * (-A * V1 + sigma_soil)
-    der_dV2 = (-2 * B / mu) * tau * (-A * V1 + sigma_soil)
+    der_dB = (-2 * V2 / mu) * tau * (-A * V1 * mu + sigma_soil)
+    der_dV2 = (-2 * B / mu) * tau * (-A * V1 * mu + sigma_soil)
     der_dC = 1  # CHECK!!!!!!
     der_dsigmasoil = tau
 
@@ -106,8 +106,8 @@ def wcm(A, V1, B, V2, mvs, R, theta=23, pol="VH"):
 
     der_dA = V1 * mu - V1 * mu * tau
     der_dV1 = A * mu - A * mu * tau
-    der_dB = (-2 * V2 / mu) * tau * (-A * V1 + sigma_soil)
-    der_dV2 = (-2 * B / mu) * tau * (-A * V1 + sigma_soil)
+    der_dB = (-2 * V2 / mu) * tau * (-A * V1 * mu + sigma_soil)
+    der_dV2 = (-2 * B / mu) * tau * (-A * V1 * mu + sigma_soil)
     der_dmvs = tau
     der_dR = tau
 
