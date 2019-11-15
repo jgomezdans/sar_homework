@@ -401,7 +401,7 @@ def test_wcm_vv():
     R = np.zeros(2)
     retval_vv = wcm(A, V1, B, V2, mvs, R, theta=36, pol="VV")
 
-    expected = np.array([-18.7851694, -18.7851694])
+    expected = np.array([-15.76127599, -15.76127599])
     assert np.allclose( retval_vv[0], expected)
 
 
@@ -410,13 +410,13 @@ def test_wcm_vh():
     A, B, V1, V2, mvs = -5,  0.1, np.ones(2)*4, np.ones(2)*4, np.zeros(2)
     R = np.zeros(2)
     retval_vh = wcm(A, V1, B, V2, mvs, R, theta=36, pol="VH")
-    expected = np.array([-12.99188003, -12.99188003])
+    expected = np.array([-14.48053533, -14.48053533])
     assert np.allclose( retval_vh[0], expected)
 
 
 def test_cost_wcm():
-    sigma_vv = np.array([-18.7851694, -18.7851694])
-    sigma_vh = np.array([-12.99188003, -12.99188003])
+    sigma_vv = np.array([-15.76127599, -15.76127599])
+    sigma_vh = np.array([-14.48053533, -14.48053533])
     theta = np.ones(2)*36.
     A_vv, B_vv, R_vv, A_vh, B_vh, R_vh = (-12, 0.05, 0., -5, 0.1, 0)
 
@@ -428,8 +428,8 @@ def test_cost_wcm():
 
 
 def test_cost_wcm_jac0():
-    sigma_vv = np.array([-18.7851694, -18.7851694])
-    sigma_vh = np.array([-12.99188003, -12.99188003])
+    sigma_vv = np.array([-15.76127599, -15.76127599])
+    sigma_vh = np.array([-14.48053533, -14.48053533])
     theta = np.ones(2)*36.
     A_vv, B_vv, R_vv, A_vh, B_vh, R_vh = (-12, 0.05, 0., -5, 0.1, 0)
 
@@ -442,8 +442,8 @@ def test_cost_wcm_jac0():
 
 
 def test_cost_wcm_jac1():
-    sigma_vv = np.array([-18.7851694, -18.7851694])
-    sigma_vh = np.array([-12.99188003, -12.99188003])
+    sigma_vv = np.array([-15.76127599, -15.76127599])
+    sigma_vh = np.array([-14.48053533, -14.48053533])
     theta = np.ones(2)*36.
     A_vv, B_vv, R_vv, A_vh, B_vh, R_vh = (-10, 0.06, 0.1, -4, 0.11, 0.2)
 
