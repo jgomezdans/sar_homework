@@ -28,14 +28,14 @@ def wcm_jac_(A, V1, B, V2, R, alpha, C, theta=23):
     V1, V2 and C)."""
     mu = np.cos(np.deg2rad(theta))
     tau = np.exp(-2 * B * V2 / mu)
-    veg = A * V1 * (1 - tau)
+    veg = A * V1 * mu * (1 - tau)
     sigma_soil = R+alpha
     soil = tau * sigma_soil + C
 
     der_dA = V1 * mu - V1 * mu * tau
     der_dV1 = A * mu - A * mu * tau
-    der_dB = (-2 * V2 / mu) * tau * (-A * V1 + sigma_soil)
-    der_dV2 = (-2 * B / mu) * tau * (-A * V1 + sigma_soil)
+    der_dB = (-2 * V2 / mu) * tau * (-A * V1 * mu + sigma_soil)
+    der_dV2 = (-2 * B / mu) * tau * (-A * V1 * mu + sigma_soil)
     der_dC = 1
     der_dR = tau
     der_dalpha = tau
@@ -43,7 +43,7 @@ def wcm_jac_(A, V1, B, V2, R, alpha, C, theta=23):
     # Also returns der_dV1 and der_dV2
     return (
         veg + soil,
-        [der_dA, der_dB, der_dC, der_dR, der_dalpha, der_dV1, der_dV2],
+        [der_dA, der_dB, der_dC, der_dR, der_dalpha, der_dV1, der_dV2]
     )
 
 def fwd_model_(x, svh, svv, theta):
@@ -169,7 +169,7 @@ def invert_field_(svv, svh, theta, prior_mean, prior_sd, gamma, s2_lai):
     xvv = np.array([1, 0.5, sigma_soil_vv_mu])
     xvh = np.array([1, 0.5, sigma_soil_vh_mu])
     sm0 = prior_mean[6 : (6 + n_obs)]
-    ruff = sm0*0 + 1.
+    ruff = sm0*0 + .03
     # In reality, this should come from a sensible prior mean, but for the
     # time being...
     x0 = np.concatenate([xvv, xvh, sm0, ruff, s2_lai])
@@ -177,8 +177,8 @@ def invert_field_(svv, svh, theta, prior_mean, prior_sd, gamma, s2_lai):
     # Put some parameter bounds so we don't end up with crazy numbers
     bounds = (
         [[None, None]] * 6
-        + [[0.7, 1.3]] * s2_lai.shape[0]
-        + [[None, None]]* s2_lai.shape[0]
+        + [[0.1, 3.3]] * s2_lai.shape[0]
+        + [[0, .03]]* s2_lai.shape[0]
         + [[0, 8]] * s2_lai.shape[0]
     )
     # Minimise the log-posterior
@@ -203,10 +203,9 @@ def invert_field_(svv, svh, theta, prior_mean, prior_sd, gamma, s2_lai):
 def fresnel(eps, theta):
     """Fresnel reflection coefficient for VV"""
     theta = np.deg2rad(theta)
-    num = (eps-1)*(np.sin(theta)**2 - eps*(1+np.sin(theta)**2))
+    num = eps*np.cos(theta) - np.sqrt(eps - np.sin(theta)**2)
     den = eps*np.cos(theta) + np.sqrt(eps - np.sin(theta)**2)
-    den = den**2
-    return np.abs(num/den)
+    return np.abs(num/den)**2
 
 def mv2eps(a, b, c, mv):
     eps = a + b * mv + c * mv**2
@@ -214,11 +213,11 @@ def mv2eps(a, b, c, mv):
 
 
 def quad_approx_solver(a, b, c, theta, alphas):
-    x = np.arange(0.01, 0.9, 0.01)
+    x = np.arange(0.01, 0.5, 0.01)
     p = np.polyfit(x, fresnel(mv2eps(a, b, c, x),theta.mean()), 2)
     # 2nd order polynomial
     #solve
-    solutions = [np.roots([p[2]-aa, p[1], p[0]]) for aa in alphas]
+    solutions = [np.roots([p[0], p[1], p[2]-aa]) for aa in alphas]
     return solutions
 
 
@@ -255,7 +254,7 @@ def do_plots_(field, retval, svv, svh, theta, doy, df, s2_lai):
 #    )
     axs[1].axhspan(-0.5, 0.5, color="0.8")
     axs[1].legend(loc="best")
-    l1 = axs[2].plot(doy, retval.x[6:(6+n_obs)], "r-o", label="sigma soil")
+    l1 = axs[2].plot(doy, retval.x[6:(6+n_obs)]+retval.x[6+n_obs:(6+n_obs*2)], "r-o", label="sigma soil")
     axx = axs[2].twinx()
     l2 = axx.plot(
         df[f"doy_{field:s}"], df[f"SM_{field:s}"], "s-g", label="Sigma SM"
