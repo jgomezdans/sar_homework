@@ -20,18 +20,18 @@ def wcm_jac(A, V1, B, V2, C, sigma_soil, theta=23):
     often related to canopy moisture content (this is polarisation
     and frequency dependent). The soil backscatter is modelled as
     a linear function of volumetric soil moisture.
-    
-    This function returns the gradient for all parameters (A, B, 
+
+    This function returns the gradient for all parameters (A, B,
     V1, V2 and C)."""
     mu = np.cos(np.deg2rad(theta))
     tau = np.exp(-2 * B * V2 / mu)
-    veg = A * V1 * (1 - tau)
+    veg = A * V1 * mu * (1 - tau)
     soil = tau * sigma_soil + C
 
-    der_dA = V1 - V1 * tau
-    der_dV1 = A - A * tau
-    der_dB = (-2 * V2 / mu) * tau * (-A * V1 + sigma_soil)
-    der_dV2 = (-2 * B / mu) * tau * (-A * V1 + sigma_soil)
+    der_dA = V1 * mu - V1 * mu * tau
+    der_dV1 = A * mu - A * mu * tau
+    der_dB = (-2 * V2 / mu) * tau * (-A * V1 * mu + sigma_soil)
+    der_dV2 = (-2 * B / mu) * tau * (-A * V1 * mu + sigma_soil)
     der_dC = 1  # CHECK!!!!!!
     der_dsigmasoil = tau
 
@@ -47,7 +47,7 @@ def cost_obs_OLD(x, svh, svv, theta, unc=0.5):
     A_vv, B_vv, C_vv, A_vh, B_vh, C_vh,
     vsm_0, ..., vsm_N,
     LAI_0, ..., LAI_N
-    
+
     We assume that len(svh) == N
     Uncertainty is the uncertainty in backscatter, and
     assume that there are two polarisations (VV and VH),
@@ -94,35 +94,35 @@ def wcm(A, V1, B, V2, mvs, R, theta=23, pol="VH"):
     """
     theta = np.deg2rad(theta)
     mu = np.cos(theta)
-    
-    K = np.log10(0.11*(np.cos(theta)**2.2))
-    if pol.upper() == "VV":
-        K = K - np.log10(0.095*(0.13 + np.sin(1.5*theta))**1.4)
-    
-    tau = np.exp(-2 * B * V2 / mu)
-    veg = A * V1 * (1 - tau)
-    sigma_soil = K + R + mvs
-    
 
-    der_dA = V1 - V1 * tau
-    der_dV1 = A - A * tau
-    der_dB = (-2 * V2 / mu) * tau * (-A * V1 + sigma_soil)
-    der_dV2 = (-2 * B / mu) * tau * (-A * V1 + sigma_soil)
-    der_dmvs = tau 
-    der_dR = tau 
-    
+    K = 10*np.log10(0.11*(mu**2.2))
+    if pol.upper() == "VV":
+        K = K - 10*np.log10(0.095*(0.13 + np.sin(1.5*theta))**1.4)
+
+    tau = np.exp(-2 * B * V2 / mu)
+    veg = A * V1 * mu * (1 - tau)
+    sigma_soil = K + R + mvs
+
+
+    der_dA = V1 * mu - V1 * mu * tau
+    der_dV1 = A * mu - A * mu * tau
+    der_dB = (-2 * V2 / mu) * tau * (-A * V1 * mu + sigma_soil)
+    der_dV2 = (-2 * B / mu) * tau * (-A * V1 * mu + sigma_soil)
+    der_dmvs = tau
+    der_dR = tau
+
     return (
         veg + tau*sigma_soil,
         np.array([der_dA, der_dV1, der_dB, der_dV2, der_dmvs, der_dR]),
     )
-    
-    
+
+
 def cost_obs(x, svh, svv, theta, unc=0.5):
     """Cost function. Order of parameters is
     A_vv, B_vv, A_vh, B_vh, ks,
     vsm_0, ..., vsm_N,
     LAI_0, ..., LAI_N
-    
+
     We assume that len(svh) == N
     Uncertainty is the uncertainty in backscatter, and
     assume that there are two polarisations (VV and VH),
@@ -132,7 +132,7 @@ def cost_obs(x, svh, svv, theta, unc=0.5):
     A_vv, B_vv, R_vv, A_vh, B_vh, R_vh = x[:6]
     vsm = x[6 : (6 + n_obs)]
     lai = x[(6 + n_obs) :]
-    sigma_vv, dvv = wcm(A_vv, lai, B_vv, lai, vsm, R_vv, 
+    sigma_vv, dvv = wcm(A_vv, lai, B_vv, lai, vsm, R_vv,
                         pol="VV", theta=theta)
     sigma_vh, dvh = wcm(A_vh, lai, B_vh, lai, vsm, R_vh,
                         pol="HV", theta=theta)
@@ -166,7 +166,7 @@ def cost_prior(x, svh, svv, theta, prior_mean, prior_unc):
     A_vv, B_vv, R_vv, A_vh, B_vh, R_vh,
     vsm_0, ..., vsm_N,
     LAI_0, ..., LAI_N
-    
+
     We assume that len(svh) == N
     """
     n_obs = len(svh)
@@ -194,7 +194,7 @@ def cost_smooth(x, gamma):
     return xcost_model, xdcost_model
 
 
-def cost_function(x, svh, svv, theta, gamma, prior_mean, prior_unc, 
+def cost_function(x, svh, svv, theta, gamma, prior_mean, prior_unc,
                   unc=0.8):
     """A combined cost function that calls the prior, fit to the observations
     """
@@ -217,7 +217,7 @@ def fwd_model(x, svh, svv, theta):
     A_vv, B_vv, R_vv, A_vh, B_vh, R_vh = x[:6]
     vsm = x[6 : (6 + n_obs)]
     lai = x[(6 + n_obs) :]
-    sigma_vv, _ = wcm(A_vv, lai, B_vv, lai, vsm, R_vv, 
+    sigma_vv, _ = wcm(A_vv, lai, B_vv, lai, vsm, R_vv,
                         pol="VV", theta=theta)
     sigma_vh, _ = wcm(A_vh, lai, B_vh, lai, vsm, R_vh,
                         pol="HV", theta=theta)
@@ -242,12 +242,12 @@ def extract_data():
     df_s2 = pd.read_csv("LMU_S2_field_retrievals.csv", sep=";")
     df_s2['doy'] = pd.to_datetime(df_s2.dates).dt.dayofyear
     return df, df_s2, fields
-        
-        
+
+
 ############ Some general functions for inversions #####
 def prepare_field_data(field, df, df_s2, ignore_orbits=True):
-    svvx = 10 * np.log(df[f"sigma_sentinel_vv_{field:s}"])
-    svhx = 10 * np.log(df[f"sigma_sentinel_vh_{field:s}"])
+    svvx = 10 * np.log10(df[f"sigma_sentinel_vv_{field:s}"])
+    svhx = 10 * np.log10(df[f"sigma_sentinel_vh_{field:s}"])
     thetax = df[f"theta_{field:s}"]
     passer1 = np.isfinite(svvx)
 
@@ -297,7 +297,7 @@ def prepare_field_data(field, df, df_s2, ignore_orbits=True):
                                  s2_lai, s2_cab, s2_cbrown]
         return orbit_data
 
-    
+
 def do_plots(field, retval, svv, svh, theta, doy, df, s2_lai):
     n_obs = len(svv)
     fwd_vv, fwd_vh = fwd_model(retval.x, svh, svv, theta)
@@ -370,7 +370,7 @@ def invert_field(svv, svh, theta, prior_mean, prior_sd, gamma, s2_lai):
         [-4, 0],
         [None, None],
         [None, None],
-        [-4, 0]]       
+        [-4, 0]]
         + [[0.05, 0.4]] * s2_lai.shape[0]
         + [[0, 8]] * s2_lai.shape[0]
     )
@@ -393,60 +393,60 @@ def invert_field(svv, svh, theta, prior_mean, prior_sd, gamma, s2_lai):
 
 
 
-    
-    
+
+
 def test_wcm_vv():
     """Test the WCM mode forward operation. Assume R_pq=0 and mvs=0"""
     A, B, V1, V2, mvs = -12,  0.05, np.ones(2)*4, np.ones(2)*4, np.zeros(2)
     R = np.zeros(2)
     retval_vv = wcm(A, V1, B, V2, mvs, R, theta=36, pol="VV")
 
-    expected = np.array([-18.7851694, -18.7851694])
+    expected = np.array([-15.76127599, -15.76127599])
     assert np.allclose( retval_vv[0], expected)
 
-    
+
 def test_wcm_vh():
     """Test the WCM mode forward operation. Assume R_pq=0 and mvs=0"""
     A, B, V1, V2, mvs = -5,  0.1, np.ones(2)*4, np.ones(2)*4, np.zeros(2)
     R = np.zeros(2)
     retval_vh = wcm(A, V1, B, V2, mvs, R, theta=36, pol="VH")
-    expected = np.array([-12.99188003, -12.99188003])
+    expected = np.array([-14.48053533, -14.48053533])
     assert np.allclose( retval_vh[0], expected)
 
 
 def test_cost_wcm():
-    sigma_vv = np.array([-18.7851694, -18.7851694])
-    sigma_vh = np.array([-12.99188003, -12.99188003])
+    sigma_vv = np.array([-15.76127599, -15.76127599])
+    sigma_vh = np.array([-14.48053533, -14.48053533])
     theta = np.ones(2)*36.
     A_vv, B_vv, R_vv, A_vh, B_vh, R_vh = (-12, 0.05, 0., -5, 0.1, 0)
-    
+
 
     x = np.concatenate([np.array([A_vv, B_vv, R_vv, A_vh, B_vh, R_vh]),
                        np.ones(2)*0.,np.ones(2)*4.])
     retval = cost_obs(x, sigma_vh, sigma_vv, theta, unc=0.5)
     assert np.allclose(retval[0], 0., atol=1e-3)
-    
+
 
 def test_cost_wcm_jac0():
-    sigma_vv = np.array([-18.7851694, -18.7851694])
-    sigma_vh = np.array([-12.99188003, -12.99188003])
+    sigma_vv = np.array([-15.76127599, -15.76127599])
+    sigma_vh = np.array([-14.48053533, -14.48053533])
     theta = np.ones(2)*36.
     A_vv, B_vv, R_vv, A_vh, B_vh, R_vh = (-12, 0.05, 0., -5, 0.1, 0)
-    
+
 
     x = np.concatenate([np.array([A_vv, B_vv, R_vv, A_vh, B_vh, R_vh]),
                        np.ones(2)*0.,np.ones(2)*4.])
     retval = cost_obs(x, sigma_vh, sigma_vv, theta, unc=0.5)
     assert np.allclose(retval[1], np.zeros_like(retval[1]), atol=1e-3)
-    
+
 
 
 def test_cost_wcm_jac1():
-    sigma_vv = np.array([-18.7851694, -18.7851694])
-    sigma_vh = np.array([-12.99188003, -12.99188003])
+    sigma_vv = np.array([-15.76127599, -15.76127599])
+    sigma_vh = np.array([-14.48053533, -14.48053533])
     theta = np.ones(2)*36.
     A_vv, B_vv, R_vv, A_vh, B_vh, R_vh = (-10, 0.06, 0.1, -4, 0.11, 0.2)
-    
+
     func = lambda xx: cost_obs(xx, sigma_vh, sigma_vv, theta, unc=0.5)[0]
 
     x = np.concatenate([np.array([A_vv, B_vv, R_vv, A_vh, B_vh, R_vh]),
@@ -455,4 +455,4 @@ def test_cost_wcm_jac1():
     true_jac = cost_obs(x, sigma_vh, sigma_vv, theta, unc=0.5)[1]
 
     assert np.allclose(approx_jac, true_jac, atol=0.1)
-    
+
